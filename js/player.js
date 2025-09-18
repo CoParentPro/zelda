@@ -204,8 +204,42 @@ class Player {
         if (this.isAttacking && this.attackCooldown > 200) {
             const attackPos = this.getAttackPosition();
             ctx.save();
-            ctx.fillStyle = 'rgba(255, 255, 0, 0.7)';
-            ctx.fillRect(attackPos.x, attackPos.y, this.attackRange, this.attackRange);
+            
+            // Sword slash effect
+            const gradient = ctx.createRadialGradient(
+                attackPos.x + this.attackRange / 2, 
+                attackPos.y + this.attackRange / 2, 0,
+                attackPos.x + this.attackRange / 2, 
+                attackPos.y + this.attackRange / 2, 
+                this.attackRange / 2
+            );
+            gradient.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+            gradient.addColorStop(0.5, 'rgba(255, 255, 0, 0.6)');
+            gradient.addColorStop(1, 'rgba(255, 215, 0, 0.2)');
+            
+            ctx.fillStyle = gradient;
+            
+            // Draw sword arc based on direction
+            ctx.beginPath();
+            const centerX = attackPos.x + this.attackRange / 2;
+            const centerY = attackPos.y + this.attackRange / 2;
+            
+            switch(this.direction) {
+                case 'DOWN':
+                    ctx.arc(centerX, centerY - 5, this.attackRange / 2, 0.2, Math.PI - 0.2);
+                    break;
+                case 'UP':
+                    ctx.arc(centerX, centerY + 5, this.attackRange / 2, Math.PI + 0.2, 2 * Math.PI - 0.2);
+                    break;
+                case 'LEFT':
+                    ctx.arc(centerX + 5, centerY, this.attackRange / 2, Math.PI/2 + 0.2, 3*Math.PI/2 - 0.2);
+                    break;
+                case 'RIGHT':
+                    ctx.arc(centerX - 5, centerY, this.attackRange / 2, -Math.PI/2 + 0.2, Math.PI/2 - 0.2);
+                    break;
+            }
+            ctx.fill();
+            
             ctx.restore();
         }
     }

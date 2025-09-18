@@ -426,46 +426,83 @@ class Game {
     }
 
     renderUI() {
-        // Render current message
+        // Render current message with Zelda-style message box
         if (this.currentMessage) {
             this.ctx.save();
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-            this.ctx.fillRect(10, this.height - 60, this.width - 20, 40);
             
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.font = '14px Courier New';
-            this.ctx.fillText(this.currentMessage, 20, this.height - 35);
+            // Message box background
+            this.ctx.fillStyle = 'rgba(0, 30, 60, 0.95)';
+            this.ctx.fillRect(20, this.height - 80, this.width - 40, 60);
+            
+            // Border
+            this.ctx.strokeStyle = '#FFD700';
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(20, this.height - 80, this.width - 40, 60);
+            
+            // Inner border
+            this.ctx.strokeStyle = '#8B7D6B';
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(22, this.height - 78, this.width - 44, 56);
+            
+            // Message text
+            this.ctx.fillStyle = '#FFD700';
+            this.ctx.font = 'bold 14px Courier New';
+            this.ctx.textAlign = 'left';
+            this.ctx.fillText(this.currentMessage, 35, this.height - 45);
             this.ctx.restore();
         }
         
-        // Render pause screen
+        // Render pause screen with Zelda styling
         if (this.state === 'paused') {
             this.ctx.save();
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            this.ctx.fillStyle = 'rgba(0, 30, 60, 0.8)';
             this.ctx.fillRect(0, 0, this.width, this.height);
             
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.font = '24px Courier New';
+            // Title
+            this.ctx.fillStyle = '#FFD700';
+            this.ctx.font = 'bold 28px Courier New';
             this.ctx.textAlign = 'center';
+            this.ctx.strokeStyle = '#000000';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeText('PAUSED', this.width / 2, this.height / 2);
             this.ctx.fillText('PAUSED', this.width / 2, this.height / 2);
-            this.ctx.fillText('Press ESC to resume', this.width / 2, this.height / 2 + 30);
+            
+            // Instruction
+            this.ctx.fillStyle = '#D3D3D3';
+            this.ctx.font = '16px Courier New';
+            this.ctx.fillText('Press ESC to resume', this.width / 2, this.height / 2 + 40);
             this.ctx.restore();
         }
         
-        // Render game over screen
+        // Render game over screen with dramatic Zelda styling
         if (this.state === 'gameover') {
             this.ctx.save();
-            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            this.ctx.fillStyle = 'rgba(139, 0, 0, 0.9)';
             this.ctx.fillRect(0, 0, this.width, this.height);
             
-            this.ctx.fillStyle = '#ff0000';
-            this.ctx.font = '32px Courier New';
+            // Dramatic red glow effect
+            const gradient = this.ctx.createRadialGradient(
+                this.width / 2, this.height / 2, 0,
+                this.width / 2, this.height / 2, 200
+            );
+            gradient.addColorStop(0, 'rgba(255, 0, 0, 0.3)');
+            gradient.addColorStop(1, 'rgba(139, 0, 0, 0.1)');
+            this.ctx.fillStyle = gradient;
+            this.ctx.fillRect(0, 0, this.width, this.height);
+            
+            // Game Over text with shadow effect
+            this.ctx.fillStyle = '#000000';
+            this.ctx.font = 'bold 36px Courier New';
             this.ctx.textAlign = 'center';
+            this.ctx.fillText('GAME OVER', this.width / 2 + 2, this.height / 2 - 18);
+            
+            this.ctx.fillStyle = '#FF4444';
             this.ctx.fillText('GAME OVER', this.width / 2, this.height / 2 - 20);
             
-            this.ctx.fillStyle = '#ffffff';
-            this.ctx.font = '16px Courier New';
-            this.ctx.fillText('Press R to restart', this.width / 2, this.height / 2 + 20);
+            // Restart instruction
+            this.ctx.fillStyle = '#FFD700';
+            this.ctx.font = 'bold 18px Courier New';
+            this.ctx.fillText('Press R to restart', this.width / 2, this.height / 2 + 30);
             this.ctx.restore();
         }
         

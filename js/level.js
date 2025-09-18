@@ -549,39 +549,169 @@ class Level {
     renderTile(ctx, tileX, tileY, tileType) {
         const worldX = tileX * this.tileSize;
         const worldY = tileY * this.tileSize;
+        const size = this.tileSize;
         
-        let color = '#333333'; // Default empty
+        ctx.imageSmoothingEnabled = false;
         
         switch(tileType) {
             case this.tileTypes.FLOOR:
-                color = this.world === 'dark' ? '#2a2a2a' : '#cccccc';
+                this.renderFloor(ctx, worldX, worldY, size);
                 break;
             case this.tileTypes.WALL:
-                color = this.world === 'dark' ? '#660066' : '#666666';
+                this.renderWall(ctx, worldX, worldY, size);
                 break;
             case this.tileTypes.WATER:
-                color = '#0066cc';
+                this.renderWater(ctx, worldX, worldY, size);
                 break;
             case this.tileTypes.PIT:
-                color = '#000000';
+                this.renderPit(ctx, worldX, worldY, size);
                 break;
             case this.tileTypes.DOOR:
-                color = '#8B4513';
+                this.renderDoor(ctx, worldX, worldY, size);
                 break;
             case this.tileTypes.LOCKED_DOOR:
-                color = '#DAA520';
+                this.renderLockedDoor(ctx, worldX, worldY, size);
+                break;
+            case this.tileTypes.EMPTY:
+                this.renderEmpty(ctx, worldX, worldY, size);
                 break;
         }
+    }
+
+    renderFloor(ctx, x, y, size) {
+        // Zelda-style stone floor with pattern
+        const baseColor = this.world === 'dark' ? '#4A4A4A' : '#D3D3D3';
+        const darkColor = this.world === 'dark' ? '#2F2F2F' : '#B8B8B8';
+        const lightColor = this.world === 'dark' ? '#5F5F5F' : '#E8E8E8';
         
-        ctx.fillStyle = color;
-        ctx.fillRect(worldX, worldY, this.tileSize, this.tileSize);
+        // Base floor
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(x, y, size, size);
         
-        // Add tile borders for visibility
-        if (tileType !== this.tileTypes.EMPTY) {
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 0.5;
-            ctx.strokeRect(worldX, worldY, this.tileSize, this.tileSize);
+        // Stone pattern - checkered effect
+        ctx.fillStyle = darkColor;
+        if ((Math.floor(x/size) + Math.floor(y/size)) % 2 === 0) {
+            ctx.fillRect(x + 1, y + 1, size - 2, size - 2);
         }
+        
+        // Highlight edges
+        ctx.fillStyle = lightColor;
+        ctx.fillRect(x, y, size, 1);
+        ctx.fillRect(x, y, 1, size);
+        
+        // Shadow edges
+        ctx.fillStyle = darkColor;
+        ctx.fillRect(x, y + size - 1, size, 1);
+        ctx.fillRect(x + size - 1, y, 1, size);
+    }
+
+    renderWall(ctx, x, y, size) {
+        // Zelda-style dungeon wall
+        const baseColor = this.world === 'dark' ? '#663366' : '#8B7D6B';
+        const darkColor = this.world === 'dark' ? '#441144' : '#5D4E37';
+        const lightColor = this.world === 'dark' ? '#885588' : '#A0916F';
+        
+        // Base wall
+        ctx.fillStyle = baseColor;
+        ctx.fillRect(x, y, size, size);
+        
+        // Stone blocks pattern
+        ctx.fillStyle = darkColor;
+        ctx.fillRect(x + 2, y + 2, size - 4, size - 4);
+        
+        // Highlight
+        ctx.fillStyle = lightColor;
+        ctx.fillRect(x, y, size, 2);
+        ctx.fillRect(x, y, 2, size);
+        
+        // Inner highlight
+        ctx.fillStyle = lightColor;
+        ctx.fillRect(x + 3, y + 3, size - 6, 1);
+        ctx.fillRect(x + 3, y + 3, 1, size - 6);
+        
+        // Shadow
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x, y + size - 1, size, 1);
+        ctx.fillRect(x + size - 1, y, 1, size);
+    }
+
+    renderWater(ctx, x, y, size) {
+        // Animated water effect
+        const time = Date.now() / 500;
+        const wave = Math.sin(time + x/20 + y/20) * 0.1 + 0.9;
+        
+        // Base water
+        ctx.fillStyle = `rgba(0, 102, 204, ${wave})`;
+        ctx.fillRect(x, y, size, size);
+        
+        // Water ripples
+        ctx.fillStyle = 'rgba(135, 206, 235, 0.5)';
+        const rippleOffset = Math.sin(time + x/10) * 2;
+        ctx.fillRect(x + rippleOffset, y + size/4, size - Math.abs(rippleOffset), 2);
+        ctx.fillRect(x + rippleOffset, y + 3*size/4, size - Math.abs(rippleOffset), 2);
+        
+        // Border
+        ctx.strokeStyle = '#0055AA';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, size, size);
+    }
+
+    renderPit(ctx, x, y, size) {
+        // Dark pit with gradient effect
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x, y, size, size);
+        
+        // Gradient effect
+        const gradient = ctx.createRadialGradient(
+            x + size/2, y + size/2, 0,
+            x + size/2, y + size/2, size/2
+        );
+        gradient.addColorStop(0, 'rgba(64, 64, 64, 0.8)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 1)');
+        
+        ctx.fillStyle = gradient;
+        ctx.fillRect(x, y, size, size);
+        
+        // Dark border
+        ctx.strokeStyle = '#333333';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, size, size);
+    }
+
+    renderDoor(ctx, x, y, size) {
+        // Wooden door
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(x, y, size, size);
+        
+        // Wood grain
+        ctx.fillStyle = '#A0522D';
+        ctx.fillRect(x + 2, y + 2, size - 4, size - 4);
+        
+        // Door handle
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(x + size - 4, y + size/2 - 1, 2, 2);
+        
+        // Door frame
+        ctx.strokeStyle = '#654321';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, size, size);
+    }
+
+    renderLockedDoor(ctx, x, y, size) {
+        this.renderDoor(ctx, x, y, size);
+        
+        // Lock symbol
+        ctx.fillStyle = '#FFD700';
+        ctx.fillRect(x + size/2 - 2, y + size/2 - 2, 4, 4);
+        
+        ctx.fillStyle = '#000000';
+        ctx.fillRect(x + size/2 - 1, y + size/2 - 1, 2, 2);
+    }
+
+    renderEmpty(ctx, x, y, size) {
+        // Dark void
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x, y, size, size);
     }
 
     getBounds() {
