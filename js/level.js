@@ -523,6 +523,9 @@ class Level {
             }
         }
         
+        // Add dynamic lighting overlay
+        this.renderDynamicLighting(ctx);
+        
         // Render chests
         this.chests.forEach(chest => {
             chest.render(ctx);
@@ -543,6 +546,46 @@ class Level {
         // Render boss
         if (this.boss && this.boss.isAlive) {
             this.boss.render(ctx);
+        }
+    }
+    
+    renderDynamicLighting(ctx) {
+        if (this.world === 'dark') {
+            // Create darkness overlay for dark world
+            ctx.save();
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.fillStyle = 'rgba(60, 20, 80, 0.7)';
+            ctx.fillRect(0, 0, this.bounds.width, this.bounds.height);
+            ctx.restore();
+            
+            // Add light sources around player and torches
+            ctx.save();
+            ctx.globalCompositeOperation = 'screen';
+            
+            // Player light
+            const playerLight = ctx.createRadialGradient(0, 0, 0, 0, 0, 100);
+            playerLight.addColorStop(0, 'rgba(255, 255, 200, 0.3)');
+            playerLight.addColorStop(1, 'rgba(255, 255, 200, 0)');
+            ctx.fillStyle = playerLight;
+            
+            // Light sources at various points
+            const lightSources = [
+                { x: 200, y: 150 },
+                { x: 400, y: 300 },
+                { x: 300, y: 200 }
+            ];
+            
+            lightSources.forEach(light => {
+                const gradient = ctx.createRadialGradient(light.x, light.y, 0, light.x, light.y, 80);
+                gradient.addColorStop(0, 'rgba(255, 200, 100, 0.4)');
+                gradient.addColorStop(1, 'rgba(255, 200, 100, 0)');
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.arc(light.x, light.y, 80, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            
+            ctx.restore();
         }
     }
 

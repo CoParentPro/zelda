@@ -19,6 +19,7 @@ class Game {
         this.level = null;
         this.input = new InputManager();
         this.camera = { x: 0, y: 0 };
+        this.particleSystem = new ParticleSystem();
         
         // Level data
         this.levels = {};
@@ -40,6 +41,18 @@ class Game {
         // Game progression
         this.completedLevels = [];
         this.gameCompleted = false;
+        
+        // Sound system simulation
+        this.soundEffects = {
+            swordSlash: '⚔️',
+            enemyHit: '💥',
+            itemCollect: '✨',
+            heartPickup: '❤️',
+            rupeeCollect: '💎',
+            levelComplete: '🎉'
+        };
+        this.currentSoundEffect = null;
+        this.soundEffectTimer = 0;
         
         // UI elements
         this.showDebugInfo = false;
@@ -101,6 +114,9 @@ class Game {
             this.level.update(deltaTime, this.player);
         }
         
+        // Update particle system
+        this.particleSystem.update(deltaTime);
+        
         // Handle collisions
         this.handleCollisions();
         
@@ -109,6 +125,9 @@ class Game {
         
         // Update UI and messages
         this.updateMessages(deltaTime);
+        
+        // Update sound effects
+        this.updateSoundEffects(deltaTime);
         
         // Check level completion
         this.checkLevelCompletion();
@@ -180,6 +199,24 @@ class Game {
             if (!item.isCollected && item.collidesWith(this.player)) {
                 if (item.collect(this.player)) {
                     this.showMessage(`Collected ${item.type}!`, 1500);
+                    
+                    // Play collection sound
+                    if (item.type.includes('rupee')) {
+                        this.playSound('rupeeCollect');
+                    } else if (item.type === 'heart') {
+                        this.playSound('heartPickup');
+                    } else {
+                        this.playSound('itemCollect');
+                    }
+                    
+                    // Add collection particle effect
+                    this.particleSystem.addBurst(
+                        item.x + item.width / 2, 
+                        item.y + item.height / 2, 
+                        10, 
+                        item.type === 'rupee' ? 'energy' : 'magic'
+                    );
+                    
                     this.updateUI();
                 }
             }
@@ -210,11 +247,25 @@ class Game {
                 
                 if (rectangleCollision(attackBounds, enemy.getBounds())) {
                     const killed = enemy.takeDamage(this.player.attackDamage);
+                    
+                    // Play sound effects
+                    this.playSound(killed ? 'enemyHit' : 'swordSlash');
+                    
+                    // Add combat particle effects
+                    this.particleSystem.addBurst(
+                        enemy.x + enemy.width / 2, 
+                        enemy.y + enemy.height / 2, 
+                        8, 
+                        killed ? 'blood' : 'spark'
+                    );
+                    
                     if (killed) {
                         const drop = enemy.die();
                         if (drop) {
                             this.level.addItem(new Item(drop.x, drop.y, drop.type, drop.value));
                         }
+                        // Victory particles
+                        this.particleSystem.addBurst(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2, 15, 'energy');
                     }
                 }
             }
@@ -245,8 +296,19 @@ class Game {
                 
                 if (rectangleCollision(attackBounds, boss.getBounds())) {
                     const killed = boss.takeDamage(this.player.attackDamage);
+                    
+                    // Add boss combat effects
+                    this.particleSystem.addBurst(
+                        boss.x + boss.width / 2, 
+                        boss.y + boss.height / 2, 
+                        12, 
+                        'magic'
+                    );
+                    
                     if (killed) {
                         this.showMessage(`${boss.bossType} defeated!`, 3000);
+                        // Epic victory effect
+                        this.particleSystem.addBurst(boss.x + boss.width / 2, boss.y + boss.height / 2, 25, 'energy');
                     }
                 }
             }
@@ -285,6 +347,22 @@ class Game {
             this.messageTimer = next.duration;
         }
     }
+    
+    updateSoundEffects(deltaTime) {
+        if (this.soundEffectTimer > 0) {
+            this.soundEffectTimer -= deltaTime;
+            if (this.soundEffectTimer <= 0) {
+                this.currentSoundEffect = null;
+            }
+        }
+    }
+    
+    playSound(soundName) {
+        if (this.soundEffects[soundName]) {
+            this.currentSoundEffect = this.soundEffects[soundName];
+            this.soundEffectTimer = 500; // Display for 500ms
+        }
+    }
 
     checkLevelCompletion() {
         if (!this.level || this.level.completed) return;
@@ -300,6 +378,19 @@ class Game {
         this.level.completed = true;
         
         this.showMessage(`Level ${this.currentLevel} completed!`, 3000);
+        this.playSound('levelComplete');
+        
+        // Epic completion effect
+        for (let i = 0; i < 50; i++) {
+            setTimeout(() => {
+                this.particleSystem.addBurst(
+                    Math.random() * this.width,
+                    Math.random() * this.height,
+                    5,
+                    'energy'
+                );
+            }, i * 100);
+        }
         
         // Check if this was the final level
         if (this.currentLevel === 12) {
@@ -418,11 +509,358 @@ class Game {
             this.player.render(this.ctx);
         }
         
+        // Render particle effects
+        this.particleSystem.render(this.ctx);
+        
         // Restore context
         this.ctx.restore();
         
-        // Render UI overlays
+        // Render UI overlays with advanced HUD
+        this.renderAdvancedHUD();
         this.renderUI();
+    }
+
+    renderAdvancedHUD() {
+        if (!this.player) return;
+        
+        this.ctx.save();
+        
+        // Advanced HUD Background
+        const hudHeight = 80;
+        const gradient = this.ctx.createLinearGradient(0, 0, 0, hudHeight);
+        gradient.addColorStop(0, 'rgba(0, 20, 40, 0.95)');
+        gradient.addColorStop(1, 'rgba(0, 10, 20, 0.98)');
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillRect(0, 0, this.width, hudHeight);
+        
+        // HUD Border
+        this.ctx.strokeStyle = '#FFD700';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(0, 0, this.width, hudHeight);
+        
+        // Heart Containers (Left side)
+        this.renderHeartContainers();
+        
+        // Magic Meter
+        this.renderMagicMeter();
+        
+        // Rupee Counter with animated effect
+        this.renderAdvancedRupeeCounter();
+        
+        // Mini Map (Top Right)
+        this.renderMiniMap();
+        
+        // Current Item (Bottom Left)
+        this.renderCurrentItem();
+        
+        // Level Progress Bar
+        this.renderLevelProgress();
+        
+        // Experience/Score Display
+        this.renderExperienceDisplay();
+        
+        // Sound Effect Display
+        this.renderSoundEffect();
+        
+        this.ctx.restore();
+    }
+    
+    renderHeartContainers() {
+        const heartSize = 16;
+        const startX = 20;
+        const startY = 20;
+        
+        for (let i = 0; i < this.player.maxHealth; i++) {
+            const x = startX + (i * (heartSize + 4));
+            const y = startY;
+            
+            // Heart container background
+            this.ctx.fillStyle = '#8B0000';
+            this.ctx.beginPath();
+            this.ctx.arc(x + 4, y + 4, 3, 0, Math.PI, true);
+            this.ctx.arc(x + 12, y + 4, 3, 0, Math.PI, true);
+            this.ctx.moveTo(x + 1, y + 4);
+            this.ctx.lineTo(x + 8, y + 12);
+            this.ctx.lineTo(x + 15, y + 4);
+            this.ctx.fill();
+            
+            // Filled heart if player has health
+            if (i < this.player.health) {
+                this.ctx.fillStyle = '#FF1493';
+                this.ctx.beginPath();
+                this.ctx.arc(x + 4, y + 4, 3, 0, Math.PI, true);
+                this.ctx.arc(x + 12, y + 4, 3, 0, Math.PI, true);
+                this.ctx.moveTo(x + 1, y + 4);
+                this.ctx.lineTo(x + 8, y + 12);
+                this.ctx.lineTo(x + 15, y + 4);
+                this.ctx.fill();
+                
+                // Heart glow effect
+                this.ctx.shadowColor = '#FF69B4';
+                this.ctx.shadowBlur = 5;
+                this.ctx.fill();
+                this.ctx.shadowBlur = 0;
+            }
+            
+            // Heart border
+            this.ctx.strokeStyle = '#000000';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            this.ctx.arc(x + 4, y + 4, 3, 0, Math.PI, true);
+            this.ctx.arc(x + 12, y + 4, 3, 0, Math.PI, true);
+            this.ctx.moveTo(x + 1, y + 4);
+            this.ctx.lineTo(x + 8, y + 12);
+            this.ctx.lineTo(x + 15, y + 4);
+            this.ctx.stroke();
+        }
+    }
+    
+    renderMagicMeter() {
+        const meterWidth = 100;
+        const meterHeight = 8;
+        const x = 20;
+        const y = 50;
+        
+        // Magic meter background
+        this.ctx.fillStyle = '#000080';
+        this.ctx.fillRect(x, y, meterWidth, meterHeight);
+        
+        // Magic meter fill (simulate magic points)
+        const magicPercent = 0.7; // 70% magic for demo
+        this.ctx.fillStyle = '#00BFFF';
+        this.ctx.fillRect(x, y, meterWidth * magicPercent, meterHeight);
+        
+        // Animated sparkle effect
+        const time = Date.now() / 200;
+        this.ctx.fillStyle = `rgba(255, 255, 255, ${0.5 + Math.sin(time) * 0.3})`;
+        this.ctx.fillRect(x + 2, y + 2, meterWidth * magicPercent - 4, meterHeight - 4);
+        
+        // Border
+        this.ctx.strokeStyle = '#FFD700';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(x, y, meterWidth, meterHeight);
+        
+        // Label
+        this.ctx.fillStyle = '#FFD700';
+        this.ctx.font = 'bold 10px Courier New';
+        this.ctx.fillText('MAGIC', x, y - 2);
+    }
+    
+    renderAdvancedRupeeCounter() {
+        const x = this.width - 120;
+        const y = 25;
+        
+        // Rupee icon with glow effect
+        this.ctx.save();
+        this.ctx.shadowColor = '#00FF00';
+        this.ctx.shadowBlur = 10;
+        this.ctx.fillStyle = '#00FF00';
+        this.ctx.beginPath();
+        const centerX = x;
+        const centerY = y;
+        const size = 8;
+        this.ctx.moveTo(centerX, centerY - size);
+        this.ctx.lineTo(centerX + size, centerY);
+        this.ctx.lineTo(centerX, centerY + size);
+        this.ctx.lineTo(centerX - size, centerY);
+        this.ctx.closePath();
+        this.ctx.fill();
+        this.ctx.restore();
+        
+        // Rupee count with fancy styling
+        this.ctx.fillStyle = '#FFD700';
+        this.ctx.font = 'bold 16px Courier New';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText(`× ${this.player.rupees}`, x + 15, y + 5);
+        
+        // Add outline to text
+        this.ctx.strokeStyle = '#000000';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeText(`× ${this.player.rupees}`, x + 15, y + 5);
+        this.ctx.fillText(`× ${this.player.rupees}`, x + 15, y + 5);
+    }
+    
+    renderMiniMap() {
+        const mapSize = 60;
+        const x = this.width - mapSize - 10;
+        const y = 10;
+        
+        // Mini map background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+        this.ctx.fillRect(x, y, mapSize, mapSize);
+        
+        // Map border
+        this.ctx.strokeStyle = '#FFD700';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(x, y, mapSize, mapSize);
+        
+        // Draw simplified level layout
+        if (this.level) {
+            const scale = mapSize / (this.level.width * this.level.tileSize);
+            
+            // Draw walls on minimap
+            this.ctx.fillStyle = '#666666';
+            for (let ty = 0; ty < this.level.height; ty++) {
+                for (let tx = 0; tx < this.level.width; tx++) {
+                    if (this.level.getTile(tx, ty) === this.level.tileTypes.WALL) {
+                        this.ctx.fillRect(
+                            x + tx * this.level.tileSize * scale,
+                            y + ty * this.level.tileSize * scale,
+                            this.level.tileSize * scale,
+                            this.level.tileSize * scale
+                        );
+                    }
+                }
+            }
+            
+            // Draw player position
+            if (this.player) {
+                this.ctx.fillStyle = '#FF0000';
+                const playerMapX = x + (this.player.x * scale);
+                const playerMapY = y + (this.player.y * scale);
+                this.ctx.fillRect(playerMapX - 1, playerMapY - 1, 3, 3);
+                
+                // Player pulse effect
+                const pulse = Math.sin(Date.now() / 300) * 0.5 + 0.5;
+                this.ctx.fillStyle = `rgba(255, 0, 0, ${pulse})`;
+                this.ctx.fillRect(playerMapX - 2, playerMapY - 2, 5, 5);
+            }
+            
+            // Draw enemies on minimap
+            this.ctx.fillStyle = '#FF4444';
+            this.level.enemies.forEach(enemy => {
+                if (enemy.isAlive) {
+                    const enemyMapX = x + (enemy.x * scale);
+                    const enemyMapY = y + (enemy.y * scale);
+                    this.ctx.fillRect(enemyMapX, enemyMapY, 2, 2);
+                }
+            });
+        }
+        
+        // Map label
+        this.ctx.fillStyle = '#FFD700';
+        this.ctx.font = 'bold 8px Courier New';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('MAP', x + mapSize/2, y + mapSize + 10);
+    }
+    
+    renderCurrentItem() {
+        const itemSize = 24;
+        const x = 150;
+        const y = 35;
+        
+        // Item slot background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(x, y, itemSize, itemSize);
+        
+        // Item slot border
+        this.ctx.strokeStyle = '#FFD700';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(x, y, itemSize, itemSize);
+        
+        // Draw current item (sword for demo)
+        this.ctx.fillStyle = '#C0C0C0';
+        this.ctx.fillRect(x + 8, y + 4, 3, 16);
+        this.ctx.fillRect(x + 6, y + 20, 7, 2);
+        
+        // Item glow effect
+        this.ctx.shadowColor = '#FFFFFF';
+        this.ctx.shadowBlur = 5;
+        this.ctx.fillRect(x + 8, y + 4, 3, 16);
+        this.ctx.shadowBlur = 0;
+        
+        // Label
+        this.ctx.fillStyle = '#FFD700';
+        this.ctx.font = 'bold 8px Courier New';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('SWORD', x + itemSize/2, y + itemSize + 10);
+    }
+    
+    renderLevelProgress() {
+        const barWidth = 200;
+        const barHeight = 6;
+        const x = (this.width - barWidth) / 2;
+        const y = 65;
+        
+        // Progress bar background
+        this.ctx.fillStyle = 'rgba(139, 0, 0, 0.8)';
+        this.ctx.fillRect(x, y, barWidth, barHeight);
+        
+        // Calculate progress (enemies defeated / total enemies)
+        let totalEnemies = this.level ? this.level.enemies.length : 1;
+        let defeatedEnemies = this.level ? this.level.enemies.filter(e => !e.isAlive).length : 0;
+        if (this.level && this.level.boss && !this.level.boss.isAlive) defeatedEnemies++;
+        if (this.level && this.level.boss) totalEnemies++;
+        
+        const progress = totalEnemies > 0 ? defeatedEnemies / totalEnemies : 0;
+        
+        // Progress fill with gradient
+        const gradient = this.ctx.createLinearGradient(x, y, x + barWidth * progress, y);
+        gradient.addColorStop(0, '#FFD700');
+        gradient.addColorStop(1, '#FFA500');
+        this.ctx.fillStyle = gradient;
+        this.ctx.fillRect(x, y, barWidth * progress, barHeight);
+        
+        // Progress bar border
+        this.ctx.strokeStyle = '#FFD700';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(x, y, barWidth, barHeight);
+        
+        // Progress text
+        this.ctx.fillStyle = '#FFD700';
+        this.ctx.font = 'bold 10px Courier New';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(`LEVEL PROGRESS: ${Math.floor(progress * 100)}%`, x + barWidth/2, y - 2);
+    }
+    
+    renderExperienceDisplay() {
+        const x = this.width - 180;
+        const y = 55;
+        
+        // Experience points (simulated)
+        const exp = this.completedLevels.length * 1000 + (this.player ? this.player.rupees * 10 : 0);
+        
+        // EXP label and value
+        this.ctx.fillStyle = '#00FF00';
+        this.ctx.font = 'bold 12px Courier New';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText(`EXP: ${exp}`, x, y);
+        
+        // Add glow effect
+        this.ctx.shadowColor = '#00FF00';
+        this.ctx.shadowBlur = 3;
+        this.ctx.fillText(`EXP: ${exp}`, x, y);
+        this.ctx.shadowBlur = 0;
+    }
+    
+    renderSoundEffect() {
+        if (this.currentSoundEffect) {
+            const x = this.width / 2;
+            const y = 25;
+            
+            // Sound effect bubble
+            this.ctx.save();
+            this.ctx.globalAlpha = Math.min(1, this.soundEffectTimer / 200);
+            
+            // Background circle
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            this.ctx.beginPath();
+            this.ctx.arc(x, y, 20, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // Border
+            this.ctx.strokeStyle = '#FFD700';
+            this.ctx.lineWidth = 2;
+            this.ctx.stroke();
+            
+            // Sound effect emoji
+            this.ctx.font = '24px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillStyle = '#000000';
+            this.ctx.fillText(this.currentSoundEffect, x, y + 8);
+            
+            this.ctx.restore();
+        }
     }
 
     renderUI() {
@@ -452,11 +890,29 @@ class Game {
             this.ctx.restore();
         }
         
-        // Render pause screen with Zelda styling
+        // Render advanced pause screen with menu options
         if (this.state === 'paused') {
             this.ctx.save();
-            this.ctx.fillStyle = 'rgba(0, 30, 60, 0.8)';
+            this.ctx.fillStyle = 'rgba(0, 30, 60, 0.95)';
             this.ctx.fillRect(0, 0, this.width, this.height);
+            
+            // Pause menu background
+            const menuWidth = 300;
+            const menuHeight = 200;
+            const menuX = (this.width - menuWidth) / 2;
+            const menuY = (this.height - menuHeight) / 2;
+            
+            // Menu background with gradient
+            const gradient = this.ctx.createLinearGradient(menuX, menuY, menuX, menuY + menuHeight);
+            gradient.addColorStop(0, 'rgba(0, 50, 100, 0.9)');
+            gradient.addColorStop(1, 'rgba(0, 20, 60, 0.9)');
+            this.ctx.fillStyle = gradient;
+            this.ctx.fillRect(menuX, menuY, menuWidth, menuHeight);
+            
+            // Menu border
+            this.ctx.strokeStyle = '#FFD700';
+            this.ctx.lineWidth = 3;
+            this.ctx.strokeRect(menuX, menuY, menuWidth, menuHeight);
             
             // Title
             this.ctx.fillStyle = '#FFD700';
@@ -464,13 +920,28 @@ class Game {
             this.ctx.textAlign = 'center';
             this.ctx.strokeStyle = '#000000';
             this.ctx.lineWidth = 2;
-            this.ctx.strokeText('PAUSED', this.width / 2, this.height / 2);
-            this.ctx.fillText('PAUSED', this.width / 2, this.height / 2);
+            this.ctx.strokeText('GAME PAUSED', this.width / 2, menuY + 40);
+            this.ctx.fillText('GAME PAUSED', this.width / 2, menuY + 40);
             
-            // Instruction
-            this.ctx.fillStyle = '#D3D3D3';
+            // Menu options
+            const menuOptions = [
+                '↵ Resume Game',
+                '🎮 Controls',
+                '📊 Statistics',
+                '🔊 Audio: ON'
+            ];
+            
             this.ctx.font = '16px Courier New';
-            this.ctx.fillText('Press ESC to resume', this.width / 2, this.height / 2 + 40);
+            this.ctx.fillStyle = '#D3D3D3';
+            menuOptions.forEach((option, index) => {
+                this.ctx.fillText(option, this.width / 2, menuY + 80 + (index * 25));
+            });
+            
+            // Controls hint
+            this.ctx.fillStyle = '#FFD700';
+            this.ctx.font = '14px Courier New';
+            this.ctx.fillText('Press ESC to resume', this.width / 2, menuY + menuHeight - 20);
+            
             this.ctx.restore();
         }
         
