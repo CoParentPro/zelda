@@ -1,12 +1,20 @@
-// Input handling for the Zelda game
-
+// Enhanced input manager for 3D first-person/third-person controls
 class InputManager {
-    constructor() {
+    constructor(canvas) {
         this.keys = {};
         this.keysJustPressed = {};
         this.keysJustReleased = {};
+        this.mouse = {
+            x: 0,
+            y: 0,
+            deltaX: 0,
+            deltaY: 0,
+            locked: false
+        };
         
-        // Key mappings
+        this.canvas = canvas;
+        
+        // Key mappings (enhanced for 3D)
         this.keyMap = {
             // Movement
             'KeyW': 'up',
@@ -23,16 +31,26 @@ class InputManager {
             'KeyE': 'interact',
             'KeyQ': 'item',
             'KeyX': 'run',
+            'ShiftLeft': 'run',
+            'ShiftRight': 'run',
             'Enter': 'start',
-            'Escape': 'menu'
+            'Escape': 'menu',
+            
+            // 3D specific
+            'KeyC': 'crouch',
+            'KeyF': 'flashlight',
+            'KeyR': 'reload'
         };
 
+        // Mouse sensitivity for camera control
+        this.mouseSensitivity = 0.002;
+        
         this.setupEventListeners();
     }
 
     setupEventListeners() {
+        // Keyboard events
         document.addEventListener('keydown', (e) => {
-            e.preventDefault();
             const action = this.keyMap[e.code];
             if (action && !this.keys[action]) {
                 this.keysJustPressed[action] = true;
@@ -40,10 +58,14 @@ class InputManager {
             if (action) {
                 this.keys[action] = true;
             }
+            
+            // Prevent browser shortcuts for game keys
+            if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) {
+                e.preventDefault();
+            }
         });
 
         document.addEventListener('keyup', (e) => {
-            e.preventDefault();
             const action = this.keyMap[e.code];
             if (action) {
                 this.keys[action] = false;
@@ -51,10 +73,34 @@ class InputManager {
             }
         });
 
-        // Prevent context menu on right click
-        document.addEventListener('contextmenu', (e) => {
-            e.preventDefault();
-        });
+        // Enhanced mouse controls for 3D camera
+        if (this.canvas) {
+            this.canvas.addEventListener('click', () => {
+                this.requestPointerLock();
+            });
+
+            document.addEventListener('pointerlockchange', () => {
+                this.mouse.locked = document.pointerLockElement === this.canvas;
+            });
+
+            document.addEventListener('mousemove', (event) => {
+                if (this.mouse.locked) {
+                    this.mouse.deltaX = event.movementX * this.mouseSensitivity;
+                    this.mouse.deltaY = event.movementY * this.mouseSensitivity;
+                }
+            });
+
+            // Prevent context menu
+            this.canvas.addEventListener('contextmenu', (event) => {
+                event.preventDefault();
+            });
+        }
+    }
+
+    requestPointerLock() {
+        if (this.canvas) {
+            this.canvas.requestPointerLock();
+        }
     }
 
     update() {
@@ -63,6 +109,7 @@ class InputManager {
         this.keysJustReleased = {};
     }
 
+    // Legacy compatibility methods
     isKeyDown(action) {
         return !!this.keys[action];
     }
@@ -75,6 +122,48 @@ class InputManager {
         return !!this.keysJustReleased[action];
     }
 
+    // 3D Movement controls
+    isMovingForward() {
+        return this.keys['up'];
+    }
+
+    isMovingBackward() {
+        return this.keys['down'];
+    }
+
+    isMovingLeft() {
+        return this.keys['left'];
+    }
+
+    isMovingRight() {
+        return this.keys['right'];
+    }
+
+    isRunning() {
+        return this.keys['run'];
+    }
+
+    isAttacking() {
+        return this.keys['attack'];
+    }
+
+    isCrouching() {
+        return this.keys['crouch'];
+    }
+
+    // Camera mouse look
+    getMouseDelta() {
+        const delta = { x: this.mouse.deltaX, y: this.mouse.deltaY };
+        this.mouse.deltaX = 0;
+        this.mouse.deltaY = 0;
+        return delta;
+    }
+
+    isMouseLocked() {
+        return this.mouse.locked;
+    }
+
+    // 2D Legacy compatibility
     getMovementDirection() {
         let x = 0;
         let y = 0;
@@ -100,5 +189,22 @@ class InputManager {
         if (this.wasKeyJustPressed('left') || this.isKeyDown('left')) return 'LEFT';
         if (this.wasKeyJustPressed('right') || this.isKeyDown('right')) return 'RIGHT';
         return null;
+    }
+
+    // Alternative interface for backward compatibility
+    isKeyPressed(key) {
+        const actionMap = {
+            'up': 'up',
+            'down': 'down', 
+            'left': 'left',
+            'right': 'right',
+            'attack': 'attack',
+            'interact': 'interact',
+            'menu': 'menu',
+            'start': 'start'
+        };
+        
+        const action = actionMap[key] || key;
+        return this.isKeyDown(action);
     }
 }

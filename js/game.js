@@ -17,9 +17,25 @@ class Game {
         // Game objects
         this.player = null;
         this.level = null;
-        this.input = new InputManager();
+        this.input = new InputManager(canvas);
         this.camera = { x: 0, y: 0 };
         this.particleSystem = new ParticleSystem();
+        
+        // 3D Rendering System
+        this.renderMode = '3D'; // Can be '2D' or '3D'
+        this.renderer3D = null;
+        this.pseudo3D = false; // Fallback 3D using 2D canvas
+        
+        try {
+            this.renderer3D = new Renderer3D(canvas);
+            console.log('3D WebGL renderer initialized successfully');
+        } catch (error) {
+            console.warn('WebGL not available, enabling pseudo-3D mode:', error);
+            this.renderMode = '3D';
+            this.pseudo3D = true;
+            this.ctx = canvas.getContext('2d');
+            this.initPseudo3D();
+        }
         
         // Level data
         this.levels = {};
@@ -74,8 +90,27 @@ class Game {
         // Update UI
         this.updateUI();
         
+        // Initialize pseudo-3D if needed
+        if (this.pseudo3D) {
+            this.initPseudo3D();
+        }
+        
         console.log('Game initialized - Welcome to The Legend of Zelda: A Link to the Past!');
         this.showMessage('Welcome to The Legend of Zelda: A Link to the Past!', 3000);
+    }
+    
+    initPseudo3D() {
+        // Initialize pseudo-3D camera
+        this.pseudo3DCamera = {
+            x: 0,
+            y: 1.7, // Eye level
+            z: 0,
+            pitch: 0,
+            yaw: 0,
+            fov: 60
+        };
+        
+        console.log('Pseudo-3D first-person mode enabled');
     }
 
     loadLevel(levelId) {
@@ -105,9 +140,18 @@ class Game {
         // Handle input
         this.handleInput();
         
+        // Update 3D camera with mouse look
+        if (this.renderMode === '3D' && this.renderer3D) {
+            this.update3DCamera(deltaTime);
+        }
+        
         // Update game objects
         if (this.player) {
-            this.player.update(deltaTime, this.input, this.level);
+            if (this.renderMode === '3D') {
+                this.player.update3D(deltaTime, this.input, this.level, this.renderer3D);
+            } else {
+                this.player.update(deltaTime, this.input, this.level);
+            }
         }
         
         if (this.level) {
@@ -120,8 +164,10 @@ class Game {
         // Handle collisions
         this.handleCollisions();
         
-        // Update camera
-        this.updateCamera();
+        // Update camera (2D mode)
+        if (this.renderMode === '2D') {
+            this.updateCamera();
+        }
         
         // Update UI and messages
         this.updateMessages(deltaTime);
@@ -131,6 +177,105 @@ class Game {
         
         // Check level completion
         this.checkLevelCompletion();
+    }
+    
+    update3DCamera(deltaTime) {
+        if (this.renderer3D && !this.pseudo3D) {
+            // WebGL 3D camera
+            const mouseDelta = this.input.getMouseDelta();
+            const moveSpeed = this.input.isRunning() ? 8.0 : 4.0;
+            const moveDelta = moveSpeed * (deltaTime / 1000);
+            
+            // Mouse look
+            if (this.input.isMouseLocked()) {
+                this.renderer3D.rotateCamera(-mouseDelta.y, -mouseDelta.x);
+            }
+            
+            // WASD movement
+            if (this.input.isMovingForward()) {
+                this.renderer3D.moveCamera('forward', moveDelta);
+            }
+            if (this.input.isMovingBackward()) {
+                this.renderer3D.moveCamera('backward', moveDelta);
+            }
+            if (this.input.isMovingLeft()) {
+                this.renderer3D.moveCamera('left', moveDelta);
+            }
+            if (this.input.isMovingRight()) {
+                this.renderer3D.moveCamera('right', moveDelta);
+            }
+            
+            // Sync player position with camera for collision detection
+            if (this.player && this.renderer3D) {
+                const camPos = this.renderer3D.camera.position;
+                this.player.x = camPos[0] * 16; // Convert to 2D tile coordinates
+                this.player.y = camPos[2] * 16;
+            }
+        } else if (this.pseudo3D) {
+            // Pseudo-3D camera controls
+            this.updatePseudo3DCamera(deltaTime);
+        }
+    }
+    
+    updatePseudo3DCamera(deltaTime) {
+        const mouseDelta = this.input.getMouseDelta();
+        const moveSpeed = this.input.isRunning() ? 5.0 : 2.5;
+        const moveDelta = moveSpeed * (deltaTime / 1000);
+        
+        // Mouse look
+        if (this.input.isMouseLocked()) {
+            this.pseudo3DCamera.pitch = Math.max(-Math.PI/3, Math.min(Math.PI/3, this.pseudo3DCamera.pitch - mouseDelta.y));
+            this.pseudo3DCamera.yaw += mouseDelta.x;
+        }
+        
+        // WASD movement
+        if (this.input.isMovingForward()) {
+            this.pseudo3DCamera.x += Math.cos(this.pseudo3DCamera.yaw) * moveDelta;
+            this.pseudo3DCamera.z += Math.sin(this.pseudo3DCamera.yaw) * moveDelta;
+        }
+        if (this.input.isMovingBackward()) {
+            this.pseudo3DCamera.x -= Math.cos(this.pseudo3DCamera.yaw) * moveDelta;
+            this.pseudo3DCamera.z -= Math.sin(this.pseudo3DCamera.yaw) * moveDelta;
+        }
+        if (this.input.isMovingLeft()) {
+            this.pseudo3DCamera.x += Math.cos(this.pseudo3DCamera.yaw - Math.PI/2) * moveDelta;
+            this.pseudo3DCamera.z += Math.sin(this.pseudo3DCamera.yaw - Math.PI/2) * moveDelta;
+        }
+        if (this.input.isMovingRight()) {
+            this.pseudo3DCamera.x += Math.cos(this.pseudo3DCamera.yaw + Math.PI/2) * moveDelta;
+            this.pseudo3DCamera.z += Math.sin(this.pseudo3DCamera.yaw + Math.PI/2) * moveDelta;
+        }
+        
+        // Collision detection
+        this.checkPseudo3DCollision();
+        
+        // Sync player position
+        if (this.player) {
+            this.player.x = this.pseudo3DCamera.x * 16;
+            this.player.y = this.pseudo3DCamera.z * 16;
+        }
+    }
+    
+    checkPseudo3DCollision() {
+        if (!this.level) return;
+        
+        const tileX = Math.floor((this.pseudo3DCamera.x + this.level.width / 2));
+        const tileZ = Math.floor((this.pseudo3DCamera.z + this.level.height / 2));
+        
+        if (tileX >= 0 && tileX < this.level.width && tileZ >= 0 && tileZ < this.level.height) {
+            const tileType = this.level.getTile(tileX, tileZ);
+            if (tileType === this.level.tileTypes.WALL) {
+                // Push back from wall
+                const centerX = tileX - this.level.width / 2;
+                const centerZ = tileZ - this.level.height / 2;
+                
+                if (Math.abs(this.pseudo3DCamera.x - centerX) > Math.abs(this.pseudo3DCamera.z - centerZ)) {
+                    this.pseudo3DCamera.x = centerX + (this.pseudo3DCamera.x > centerX ? 0.4 : -0.4);
+                } else {
+                    this.pseudo3DCamera.z = centerZ + (this.pseudo3DCamera.z > centerZ ? 0.4 : -0.4);
+                }
+            }
+        }
     }
 
     handleInput() {
@@ -490,6 +635,101 @@ class Game {
     }
 
     render() {
+        if (this.renderMode === '3D' && this.renderer3D && !this.pseudo3D) {
+            // True 3D WebGL rendering
+            this.renderer3D.render3DLevel(this.level);
+            
+            // Render 3D HUD overlay on top
+            if (this.ctx) {
+                this.render3DHUD();
+            }
+        } else if (this.renderMode === '3D' && this.pseudo3D) {
+            // Pseudo-3D first-person rendering using 2D canvas
+            this.renderPseudo3D();
+        } else {
+            // 2D Canvas rendering (fallback)
+            this.render2D();
+        }
+    }
+    
+    renderPseudo3D() {
+        // Clear canvas with sky color
+        this.ctx.fillStyle = '#4A90E2';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Render floor
+        this.ctx.fillStyle = '#8B7D6B';
+        this.ctx.fillRect(0, this.height / 2, this.width, this.height / 2);
+        
+        // Pseudo-3D dungeon walls using raycasting-style rendering
+        this.renderPseudo3DWalls();
+        
+        // Render 3D HUD
+        this.render3DCrosshair();
+        this.render3DHealthBar();
+        this.render3DCompass();
+        this.render3DInteractionPrompts();
+    }
+    
+    renderPseudo3DWalls() {
+        if (!this.level) return;
+        
+        const numRays = this.width / 2; // Lower resolution for performance
+        const fov = Math.PI / 3; // 60 degrees
+        
+        for (let i = 0; i < numRays; i++) {
+            const rayAngle = this.pseudo3DCamera.yaw - fov / 2 + (i / numRays) * fov;
+            const distance = this.castRay(rayAngle);
+            
+            // Calculate wall height based on distance
+            const wallHeight = Math.min(this.height, this.height / (distance + 0.1));
+            const wallTop = (this.height - wallHeight) / 2;
+            
+            // Render wall slice with shading based on distance
+            const brightness = Math.max(0.2, 1 - distance / 20);
+            const wallColor = `rgba(139, 125, 107, ${brightness})`;
+            
+            this.ctx.fillStyle = wallColor;
+            this.ctx.fillRect(i * 2, wallTop, 2, wallHeight);
+            
+            // Add some texture variation
+            if (i % 4 === 0) {
+                this.ctx.fillStyle = `rgba(100, 90, 80, ${brightness * 0.8})`;
+                this.ctx.fillRect(i * 2, wallTop, 1, wallHeight);
+            }
+        }
+    }
+    
+    castRay(angle) {
+        if (!this.level) return 20;
+        
+        const rayX = this.pseudo3DCamera.x;
+        const rayZ = this.pseudo3DCamera.z;
+        const dx = Math.cos(angle);
+        const dz = Math.sin(angle);
+        
+        // Cast ray until it hits a wall
+        for (let distance = 0; distance < 20; distance += 0.1) {
+            const x = rayX + dx * distance;
+            const z = rayZ + dz * distance;
+            
+            const tileX = Math.floor((x + this.level.width / 2));
+            const tileZ = Math.floor((z + this.level.height / 2));
+            
+            if (tileX < 0 || tileX >= this.level.width || tileZ < 0 || tileZ >= this.level.height) {
+                return distance;
+            }
+            
+            const tileType = this.level.getTile(tileX, tileZ);
+            if (tileType === this.level.tileTypes.WALL) {
+                return distance;
+            }
+        }
+        
+        return 20; // Max distance
+    }
+    
+    render2D() {
         // Clear canvas
         this.ctx.clearRect(0, 0, this.width, this.height);
         
@@ -513,6 +753,147 @@ class Game {
         this.particleSystem.render(this.ctx);
         
         // Restore context
+        this.ctx.restore();
+        
+        // Render UI overlays with advanced HUD
+        this.renderAdvancedHUD();
+        this.renderUI();
+    }
+    
+    render3DHUD() {
+        // Create 2D overlay context for HUD
+        if (!this.ctx) {
+            this.ctx = this.canvas.getContext('2d');
+        }
+        
+        // Render modern 3D HUD
+        this.ctx.save();
+        
+        // Enhanced 3D HUD styling
+        this.render3DCrosshair();
+        this.render3DCompass();
+        this.render3DHealthBar();
+        this.render3DInteractionPrompts();
+        
+        this.ctx.restore();
+    }
+    
+    render3DCrosshair() {
+        const centerX = this.width / 2;
+        const centerY = this.height / 2;
+        const size = 10;
+        
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        this.ctx.lineWidth = 2;
+        this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.shadowBlur = 2;
+        
+        // Draw crosshair
+        this.ctx.beginPath();
+        this.ctx.moveTo(centerX - size, centerY);
+        this.ctx.lineTo(centerX + size, centerY);
+        this.ctx.moveTo(centerX, centerY - size);
+        this.ctx.lineTo(centerX, centerY + size);
+        this.ctx.stroke();
+        
+        // Center dot
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY, 2, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        this.ctx.shadowBlur = 0;
+    }
+    
+    render3DCompass() {
+        const x = this.width - 80;
+        const y = 80;
+        const radius = 30;
+        
+        // Compass background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.beginPath();
+        this.ctx.arc(x, y, radius, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        this.ctx.strokeStyle = 'rgba(255, 215, 0, 0.8)';
+        this.ctx.lineWidth = 2;
+        this.ctx.stroke();
+        
+        // North indicator
+        const rotation = this.renderer3D ? this.renderer3D.camera.rotation[1] : 0;
+        const northX = x + Math.sin(-rotation) * (radius - 5);
+        const northY = y + Math.cos(-rotation) * (radius - 5);
+        
+        this.ctx.fillStyle = '#FF4444';
+        this.ctx.beginPath();
+        this.ctx.arc(northX, northY, 3, 0, Math.PI * 2);
+        this.ctx.fill();
+        
+        // Compass label
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        this.ctx.font = 'bold 10px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('N', northX, northY + 3);
+    }
+    
+    render3DHealthBar() {
+        const x = 20;
+        const y = 20;
+        const width = 200;
+        const height = 20;
+        
+        if (!this.player) return;
+        
+        // Health bar background
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(x, y, width, height);
+        
+        // Health bar fill
+        const healthPercent = this.player.health / this.player.maxHealth;
+        const healthColor = healthPercent > 0.6 ? '#00FF00' : healthPercent > 0.3 ? '#FFFF00' : '#FF0000';
+        
+        this.ctx.fillStyle = healthColor;
+        this.ctx.fillRect(x + 2, y + 2, (width - 4) * healthPercent, height - 4);
+        
+        // Health bar border
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(x, y, width, height);
+        
+        // Health text
+        this.ctx.fillStyle = 'white';
+        this.ctx.font = 'bold 12px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(`${this.player.health}/${this.player.maxHealth}`, x + width/2, y + height/2 + 4);
+        
+        // Health icon
+        this.ctx.fillStyle = '#FF69B4';
+        this.ctx.font = '16px Arial';
+        this.ctx.textAlign = 'left';
+        this.ctx.fillText('❤', x - 25, y + 15);
+    }
+    
+    render3DInteractionPrompts() {
+        if (!this.input.isMouseLocked()) {
+            // Show click to play message
+            this.ctx.save();
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            this.ctx.fillRect(0, this.height - 100, this.width, 100);
+            
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = 'bold 18px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('Click to enter first-person mode', this.width / 2, this.height - 60);
+            this.ctx.fillText('Use WASD to move, mouse to look around', this.width / 2, this.height - 35);
+            this.ctx.restore();
+        } else {
+            // Show movement controls
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            this.ctx.font = '12px Arial';
+            this.ctx.textAlign = 'left';
+            this.ctx.fillText('WASD: Move • Mouse: Look • SHIFT: Run • SPACE: Attack • E: Interact • ESC: Menu', 10, this.height - 10);
+        }
         this.ctx.restore();
         
         // Render UI overlays with advanced HUD

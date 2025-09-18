@@ -69,18 +69,19 @@
 </head>
 <body>
     <div id="gameContainer">
-        <div class="title">The Legend of Zelda: A Link to the Past</div>
+        <div class="title">The Legend of Zelda: A Link to the Past - 3D Remaster</div>
         <canvas id="gameCanvas" width="512" height="448"></canvas>
         <div id="ui">
             <div>❤️ Health: <span id="health">3/3</span> | 💎 Rupees: <span id="rupees">0</span> | 🏰 Level: <span id="level">Light World - Eastern Palace</span></div>
         </div>
         <div id="instructions">
-            🎮 Use WASD or Arrow Keys to move • ⚔️ SPACE to attack • 🔍 E to interact
+            🎮 Click to enter first-person mode • WASD to move • Mouse to look • SHIFT to run • SPACE to attack • E to interact
         </div>
     </div>
 
     <script src="js/utils.js"></script>
     <script src="js/input.js"></script>
+    <script src="js/renderer3d.js"></script>
     <script src="js/sprite.js"></script>
     <script src="js/player.js"></script>
     <script src="js/enemy.js"></script>

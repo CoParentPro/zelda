@@ -286,4 +286,56 @@ class Player {
         this.sprite.x = this.x;
         this.sprite.y = this.y;
     }
+    
+    // 3D Update method for first-person/third-person gameplay
+    update3D(deltaTime, input, level, renderer3D) {
+        // Update cooldowns
+        if (this.attackCooldown > 0) {
+            this.attackCooldown -= deltaTime;
+        }
+        if (this.damageCooldown > 0) {
+            this.damageCooldown -= deltaTime;
+        }
+
+        // 3D movement is handled by the camera system
+        // Just sync position and handle actions
+        
+        // Handle attacking
+        if (input.isAttacking() && this.attackCooldown <= 0) {
+            this.isAttacking = true;
+            this.attackCooldown = 500; // 500ms cooldown
+        } else {
+            this.isAttacking = false;
+        }
+        
+        // Update animations
+        if (this.sprite && this.sprite.update) {
+            this.sprite.update(deltaTime);
+        }
+        
+        // Collision detection with level bounds (prevent walking through walls)
+        if (level && renderer3D) {
+            const camPos = renderer3D.camera.position;
+            const tileX = Math.floor((camPos[0] + level.width / 2));
+            const tileZ = Math.floor((camPos[2] + level.height / 2));
+            
+            // Check if trying to move into a wall
+            if (tileX >= 0 && tileX < level.width && tileZ >= 0 && tileZ < level.height) {
+                const tileType = level.getTile(tileX, tileZ);
+                if (tileType === level.tileTypes.WALL) {
+                    // Push camera back from wall
+                    const prevX = camPos[0];
+                    const prevZ = camPos[2];
+                    
+                    // Simple wall collision - push back to previous safe position
+                    if (Math.abs(prevX - Math.floor(prevX + 0.5)) > 0.3) {
+                        camPos[0] = Math.floor(prevX + 0.5) + (prevX > 0 ? -0.3 : 0.3);
+                    }
+                    if (Math.abs(prevZ - Math.floor(prevZ + 0.5)) > 0.3) {
+                        camPos[2] = Math.floor(prevZ + 0.5) + (prevZ > 0 ? -0.3 : 0.3);
+                    }
+                }
+            }
+        }
+    }
 }
